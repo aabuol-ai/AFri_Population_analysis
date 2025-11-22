@@ -1,215 +1,24 @@
-# import pandas as pd
-# from sklearn.model_selection import train_test_split, GridSearchCV
-# from sklearn.preprocessing import StandardScaler
-# from sklearn.linear_model import LinearRegression, LogisticRegression
-# from sklearn.ensemble import (
-#     RandomForestRegressor, RandomForestClassifier,
-#     GradientBoostingRegressor, GradientBoostingClassifier
-# )
-
-
-# class ModelTrainer:
-#     """
-#     Handles:
-#     - Clean feature selection (numeric only)
-#     - Train-test split (stratified for classification)
-#     - Feature scaling
-#     - Model selection + tuning
-#     - Mapping predictions back to countries/regions
-#     """
-
-#     def __init__(self, df, target, problem_type="regression"):
-#         self.df = df.copy()
-#         self.target = target
-#         self.problem_type = problem_type
-
-#         # Store for results
-#         self.X_train = None
-#         self.X_test = None
-#         self.y_train = None
-#         self.y_test = None
-        
-#         # Store original test indices
-#         self.test_indices = None
-        
-#         self.scaler = None
-#         self.best_model = None
-#         self.best_params = None
-
-#     # ----------------------------------------------------------
-#     # Train-test split (numeric only + optional stratification)
-#     # ----------------------------------------------------------
-#     def train_test_split(self, test_size=0.2, random_state=42):
-#         # Drop rows where the target is missing
-#         df_clean = self.df.dropna(subset=[self.target])
-
-#         X = df_clean.drop(columns=[self.target])
-#         y = df_clean[self.target]
-
-#         # Keep numeric columns only
-#         X = X.select_dtypes(include=["float64", "int64"])
-
-#         # DROP ROWS WITH ANY NaN VALUES IN FEATURES
-#         X = X.dropna()
-#         y = y[X.index]
-
-#         strat = y if self.problem_type == "classification" else None
-
-#         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
-#             X, y,
-#             test_size=test_size,
-#             random_state=random_state,
-#             stratify=strat
-#         )
-
-#         # Store test indices to map back to original dataframe
-#         self.test_indices = self.X_test.index
-
-#         print(f"After removing NaN: {len(X)} samples remaining")
-#         print(f"Training set: {len(self.X_train)}, Test set: {len(self.X_test)}")
-
-#         return self.X_train, self.X_test, self.y_train, self.y_test
-
-
-#     # ----------------------------------------------------------
-#     # Scale numeric features (AFTER split to avoid leakage)
-#     # ----------------------------------------------------------
-#     def scale_numeric(self):
-#         numeric_cols = self.X_train.columns  # all columns are numeric now
-
-#         self.scaler = StandardScaler()
-#         self.X_train.loc[:, numeric_cols] = self.scaler.fit_transform(self.X_train[numeric_cols])
-#         self.X_test.loc[:, numeric_cols] = self.scaler.transform(self.X_test[numeric_cols])
-
-#         return self.X_train, self.X_test
-
-#     # ----------------------------------------------------------
-#     # Available models
-#     # ----------------------------------------------------------
-#     def get_model_configs(self):
-#         if self.problem_type == "regression":
-#             return {
-#                 "LinearRegression": (LinearRegression(), {}),
-
-#                 "RandomForestRegressor": (
-#                     RandomForestRegressor(random_state=42),
-#                     {"n_estimators": [100, 300], "max_depth": [None, 10, 20]}
-#                 ),
-
-#                 "GradientBoostingRegressor": (
-#                     GradientBoostingRegressor(random_state=42),
-#                     {"n_estimators": [100, 200], "learning_rate": [0.05, 0.1], "max_depth": [2, 3]}
-#                 ),
-#             }
-
-#         else:  # classification
-#             return {
-#                 "LogisticRegression": (
-#                     LogisticRegression(max_iter=500),
-#                     {"C": [0.1, 1, 10]}
-#                 ),
-
-#                 "RandomForestClassifier": (
-#                     RandomForestClassifier(random_state=42),
-#                     {"n_estimators": [200, 400], "max_depth": [None, 10, 20]}
-#                 ),
-
-#                 "GradientBoostingClassifier": (
-#                     GradientBoostingClassifier(random_state=42),
-#                     {"n_estimators": [100, 200], "learning_rate": [0.05, 0.1], "max_depth": [2, 3]}
-#                 ),
-#             }
-
-#     # ----------------------------------------------------------
-#     # Train all models + hyperparameter tuning
-#     # ----------------------------------------------------------
-#     def train_models(self, cv=5):
-#         configs = self.get_model_configs()
-#         best_score = -float("inf")
-
-#         for name, (model, params) in configs.items():
-#             print(f"\nTraining model: {name}")
-
-#             # Simple model with no hyperparameters
-#             if len(params) == 0:
-#                 model.fit(self.X_train, self.y_train)
-#                 score = model.score(self.X_test, self.y_test)
-#                 print(f"{name} score: {score}")
-
-#                 if score > best_score:
-#                     best_score = score
-#                     self.best_model = model
-#                     self.best_params = "default"
-
-#             # Model with hyperparameter tuning
-#             else:
-#                 grid = GridSearchCV(
-#                     estimator=model,
-#                     param_grid=params,
-#                     cv=cv,
-#                     scoring="r2" if self.problem_type == "regression" else "f1",
-#                     n_jobs=-1
-#                 )
-#                 grid.fit(self.X_train, self.y_train)
-
-#                 print(f"Best params for {name}: {grid.best_params_}")
-#                 print(f"Best CV score: {grid.best_score_}")
-
-#                 if grid.best_score_ > best_score:
-#                     best_score = grid.best_score_
-#                     self.best_model = grid.best_estimator_
-#                     self.best_params = grid.best_params_
-
-#         print("\n====================")
-#         print("BEST MODEL SELECTED:")
-#         print("====================")
-#         print(self.best_model)
-#         print("Best Params:", self.best_params)
-
-#         return self.best_model, self.best_params
-
-#     # ----------------------------------------------------------
-#     # Map predictions BACK to countries/regions
-#     # ----------------------------------------------------------
-#     def map_predictions(self):
-#         if self.best_model is None:
-#             raise ValueError("Train a model before mapping predictions.")
-        
-#         if self.test_indices is None:
-#             raise ValueError("Run train_test_split before mapping predictions.")
-
-#         preds = self.best_model.predict(self.X_test)
-
-#         # Get original rows using test indices
-#         results = self.df.loc[self.test_indices].copy()
-#         results["actual"] = self.y_test.values
-#         results["predicted"] = preds
-
-#         return results
-
-
 import pandas as pd
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.ensemble import RandomForestRegressor
 
-
-class ModelTrainer:
+class TrainModel:
     """
     Handles:
     - Train-test split (with identifier alignment)
     - Numeric feature scaling
-    - Regression/classification model training
+    - Training multiple regression models
     - Hyperparameter tuning
-    - Mapping predictions back to original entities
+    - Returning all fitted models and training info for evaluation
     """
 
-    def __init__(self, df, target, problem_type="regression"):
+    def __init__(self, df, target):
         self.df = df
         self.target = target
-        self.problem_type = problem_type
 
+        # Data splits
         self.X_train = None
         self.X_test = None
         self.y_train = None
@@ -218,163 +27,115 @@ class ModelTrainer:
         self.train_indices = None
         self.test_indices = None
 
-        self.identifiers = None
-        self.id_train = None
-        self.id_test = None
-
         self.scaler = None
-        self.best_model = None
-        self.best_params = None
+
+        # Storage for all trained models and their info
+        self.models_dict = {}
 
     # ---------------------------------------------------------------------
-    # TRAIN-TEST SPLIT (with identifier alignment + stratification)
+    # TRAIN-TEST SPLIT
     # ---------------------------------------------------------------------
     def train_test_split(self, test_size=0.2, random_state=42):
-
-        # Drop rows where target is missing (only affects maternal mortality)
         df_clean = self.df.dropna(subset=[self.target]).reset_index(drop=True)
 
-        # Classification → drop ANY remaining NaNs (predictors)
-        if self.problem_type == "classification":
-            df_clean = df_clean.dropna().reset_index(drop=True)
+        # Store identifiers if needed
+        self.identifiers = df_clean[["region_country_area", "year", "code"]].copy() if "region_country_area" in df_clean.columns else None
 
-        # Store identifiers
-        self.identifiers = df_clean[["region_country_area", "year", "code"]].copy()
-
-        # Separate X and y
+        # Separate predictors and target
         X = df_clean.drop(columns=[self.target])
         y = df_clean[self.target]
 
         # Keep only numeric predictors
         X = X.select_dtypes(include=["float64", "int64"])
 
-        # Stratify if classification
-        strat = y if self.problem_type == "classification" else None
-
-        # Perform split and keep indices
+        # Split
         self.X_train, self.X_test, self.y_train, self.y_test, idx_train, idx_test = train_test_split(
-            X,
-            y,
-            df_clean.index,
-            test_size=test_size,
-            random_state=random_state,
-            stratify=strat
+            X, y, df_clean.index, test_size=test_size, random_state=random_state
         )
 
-        # Save indices for mapping
+        # Save indices for mapping if needed
         self.train_indices = idx_train
         self.test_indices = idx_test
 
-        # Match identifiers with X splits
-        self.id_train = self.identifiers.loc[idx_train]
-        self.id_test = self.identifiers.loc[idx_test]
-
         return self.X_train, self.X_test, self.y_train, self.y_test
-
+    #----------------------------------------------------------------------
+    # REMOVE BLANK ROWS
+    #----------------------------------------------------------------------
+        
+    def clean_missing_rows(self):
+        before = len(self.df)# Drop rows where target or any numeric feature is missing
+        numeric_cols = self.df.select_dtypes(include=["float64", "int64"]).columns
+        self.df = self.df.dropna(subset=[self.target] + list(numeric_cols))
+        after = len(self.df)
+        print(f"Removed {before - after} rows with missing values.")
+        return self.df
+    
     # ---------------------------------------------------------------------
     # SCALING
     # ---------------------------------------------------------------------
     def scale_numeric(self):
         numeric_cols = self.X_train.columns
-
         self.scaler = StandardScaler()
         self.X_train[numeric_cols] = self.scaler.fit_transform(self.X_train[numeric_cols])
         self.X_test[numeric_cols] = self.scaler.transform(self.X_test[numeric_cols])
-
         return self.X_train, self.X_test
 
     # ---------------------------------------------------------------------
-    # MODEL CONFIGURATION
+    # MODEL CONFIGS
     # ---------------------------------------------------------------------
     def get_model_configs(self):
-        if self.problem_type == "regression":
-            return {
-                "LinearRegression": (LinearRegression(), {}),
-                "RandomForestRegressor": (
-                    RandomForestRegressor(),
-                    {"n_estimators": [200, 400], "max_depth": [None, 10, 20]}
-                )
-            }
-
-        else:  # classification
-            return {
-                "LogisticRegression": (
-                    LogisticRegression(max_iter=500),
-                    {"C": [0.1, 1, 10]}
-                ),
-                "RandomForestClassifier": (
-                    RandomForestClassifier(),
-                    {"n_estimators": [200, 400], "max_depth": [None, 10, 20]}
-                )
-            }
+        """
+        Returns a dictionary with model_name: (estimator, hyperparameters)
+        Must include at least 3 regression models
+        """
+        return {
+            "LinearRegression": (LinearRegression(), {}),
+            "RandomForestRegressor": (
+                RandomForestRegressor(random_state=42),
+                {"n_estimators": [200, 400], "max_depth": [None, 10, 20]}
+            ),
+            "Ridge": (
+                Ridge(),
+                {"alpha": [0.1, 1.0, 10.0]}
+            )
+        }
 
     # ---------------------------------------------------------------------
-    # MODEL TRAINING + HYPERPARAMETER TUNING
+    # TRAIN ALL MODELS WITH HYPERPARAMETER TUNING
     # ---------------------------------------------------------------------
     def train_models(self, cv=5):
         configs = self.get_model_configs()
-        best_score = -float("inf")
+        self.models_dict = {}
 
         for name, (model, params) in configs.items():
             print(f"\nTraining: {name}")
 
             try:
-                # Models without hyperparameters (simple fit)
                 if len(params) == 0:
+                    # Simple fit
                     model.fit(self.X_train, self.y_train)
-                    score = model.score(self.X_test, self.y_test)
-                    print(f"{name} Score = {score}")
-
-                    if score > best_score:
-                        best_score = score
-                        self.best_model = model
-                        self.best_params = "default"
-
+                    self.models_dict[name] = {
+                        "model": model,
+                        "best_params": "default",
+                        "cv_results": None
+                    }
                 else:
                     # Hyperparameter tuning
                     grid = GridSearchCV(
                         estimator=model,
                         param_grid=params,
                         cv=cv,
-                        scoring="r2" if self.problem_type == "regression" else "f1",
+                        scoring="r2",
                         n_jobs=-1
                     )
                     grid.fit(self.X_train, self.y_train)
-
-                    print(f"Best Params: {grid.best_params_}")
-                    print(f"Best Score: {grid.best_score_}")
-
-                    if grid.best_score_ > best_score:
-                        best_score = grid.best_score_
-                        self.best_model = grid.best_estimator_
-                        self.best_params = grid.best_params_
+                    self.models_dict[name] = {
+                        "model": grid.best_estimator_,
+                        "best_params": grid.best_params_,
+                        "cv_results": grid.cv_results_
+                    }
 
             except Exception as e:
                 print(f"Model {name} FAILED. Reason: {e}")
 
-        # Final check
-        if self.best_model is None:
-            raise ValueError("No model successfully trained. Check feature NaNs or class balance.")
-
-        print("\nFinal Best Model:")
-        print(self.best_model)
-        print("Parameters:", self.best_params)
-
-        return self.best_model, self.best_params
-
-    # ---------------------------------------------------------------------
-    # MAP PREDICTIONS BACK TO IDENTIFIERS
-    # ---------------------------------------------------------------------
-    def map_predictions(self):
-        if self.best_model is None:
-            raise ValueError("Train a model before mapping predictions.")
-
-        # Predict
-        preds = self.best_model.predict(self.X_test)
-
-        # Merge with identifiers
-        results = self.id_test.copy()
-        results["actual"] = self.y_test.values
-        results["predicted"] = preds
-
-        return results
+        return self.models_dict
